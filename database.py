@@ -26,6 +26,12 @@ class DatabaseManager:
 
     def try_connect_mysql(self, password=None):
         """Attempts to connect to MySQL Server."""
+        # On Vercel serverless, skip localhost connection if not cloud-hosted
+        if os.environ.get('VERCEL') and self.mysql_host in ('127.0.0.1', 'localhost'):
+            self.active_driver = 'sqlite'
+            self.last_error = "Localhost MySQL unreachable from cloud; using high-fidelity mirror."
+            return False, self.last_error
+
         pwd = password if password is not None else self.mysql_password
         try:
             conn = pymysql.connect(
@@ -108,6 +114,10 @@ class DatabaseManager:
 
     def init_sqlite_if_needed(self):
         """Initializes SQLite schema matching the exact MySQL specifications."""
+        try:
+            self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         need_init = not self.sqlite_path.exists() or self.sqlite_path.stat().st_size == 0
         if not need_init:
             return

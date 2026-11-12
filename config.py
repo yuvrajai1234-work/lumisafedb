@@ -17,8 +17,11 @@ class Config:
     MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', '')
     MYSQL_DB = os.environ.get('MYSQL_DB', 'LumiSafeDB')
     
-    # SQLite Fallback / Mirror Database
-    SQLITE_PATH = BASE_DIR / 'lumisafe.db'
+    # SQLite Fallback / Mirror Database (use /tmp on Vercel serverless)
+    if os.environ.get('VERCEL'):
+        SQLITE_PATH = Path('/tmp') / 'lumisafe.db'
+    else:
+        SQLITE_PATH = BASE_DIR / 'lumisafe.db'
     
     # Active driver: 'mysql' or 'sqlite'
     DB_MODE = os.environ.get('DB_MODE', 'auto')
