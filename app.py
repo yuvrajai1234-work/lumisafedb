@@ -333,23 +333,66 @@ def api_complaints():
     if request.method == 'GET':
         return jsonify({"success": True, "data": db.get_complaints()})
     data = request.json or {}
-    issue_type = data.get('issue_type', '').strip()
+    raw_issue = data.get('issue_type', '').strip()
     priority = data.get('priority', 'Medium').strip()
     status = data.get('status', 'Open').strip()
     media_url = data.get('media_url', '').strip() or None
+    pole_number = data.get('pole_number', '').strip().upper()
 
-    if not issue_type:
+    if not raw_issue:
         return jsonify({"success": False, "error": "Issue type is required."}), 400
 
+    # If pole_number wasn't passed separately, check if embedded in issue_type e.g. "Bulb Failure (Pole: P-BLR-101)"
+    if not pole_number and '(Pole:' in raw_issue:
+        try:
+            pole_number = raw_issue.split('(Pole:')[1].split(')')[0].strip().upper()
+        except Exception:
+            pass
+
+    if not pole_number:
+        return jsonify({
+            "success": False, 
+            "error": "Pole number/code is required. Please select or enter a registered pole."
+        }), 400
+
+    # Strict check: Pole must be already registered in the official app
+    registered_pole = db.get_pole_by_name(pole_number)
+    if not registered_pole:
+        return jsonify({
+            "success": False,
+            "error": f"Pole '{pole_number}' is not registered in the official app. Only registered poles can be reported."
+        }), 400
+
+    # Clean base issue without duplicate pole tag
+    base_issue = raw_issue
+    if '(Pole:' in base_issue:
+        base_issue = base_issue.split('(Pole:')[0].strip()
+
+    # Format issue_type with pole tag (guaranteed to fit VARCHAR(100))
+    formatted_issue = f"{base_issue} (Pole: {registered_pole['pole_name']})"
+    if len(formatted_issue) > 100:
+        formatted_issue = formatted_issue[:100]
+
     try:
-        new_id = db.create_complaint(issue_type, priority, status, media_url)
+        new_id = db.create_complaint(formatted_issue, priority, status, media_url)
         
         my_list = session.get('my_complaints', [])
         if new_id not in my_list:
             my_list.append(new_id)
             session['my_complaints'] = my_list
 
-        return jsonify({"success": True, "id": new_id, "message": f"Complaint #{new_id} submitted successfully."})
+        lat = float(registered_pole['latitude'])
+        lon = float(registered_pole['longitude'])
+
+        return jsonify({
+            "success": True, 
+            "id": new_id, 
+            "pole_name": registered_pole['pole_name'],
+            "latitude": lat,
+            "longitude": lon,
+            "coordinates": f"{lat:.6f}, {lon:.6f}",
+            "message": f"Complaint #{new_id} for Pole {registered_pole['pole_name']} submitted successfully."
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 

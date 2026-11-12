@@ -167,6 +167,7 @@
                             <tr>
                                 <th class="py-3 px-4">Ticket ID</th>
                                 <th class="py-3 px-4">Reported Issue</th>
+                                <th class="py-3 px-4">Coordinates (Lat, Lon)</th>
                                 <th class="py-3 px-4">Priority Level</th>
                                 <th class="py-3 px-4">Current Status</th>
                                 <th class="py-3 px-4">Reported At</th>
@@ -204,6 +205,7 @@
                             <tr>
                                 <th class="py-3 px-4">Ticket ID</th>
                                 <th class="py-3 px-4">Reported Issue</th>
+                                <th class="py-3 px-4">Coordinates (Lat, Lon)</th>
                                 <th class="py-3 px-4">Priority Level</th>
                                 <th class="py-3 px-4">Current Status</th>
                                 <th class="py-3 px-4">Filed Timestamp</th>
@@ -234,6 +236,23 @@
             </p>
 
             <form id="citizen-form-complaint" onsubmit="submitCitizenComplaint(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">
+                        Pole Number / Asset Code (Printed on Pole) <span class="text-amber-400">*</span>
+                    </label>
+                    <input type="text" id="citizen-pole-number" list="citizen-registered-poles-list" required
+                           placeholder="e.g. P-BLR-101"
+                           autocomplete="off"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono placeholder:normal-case placeholder:text-slate-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
+                    <datalist id="citizen-registered-poles-list">
+                        <!-- Populated dynamically via JS -->
+                    </datalist>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i>
+                        <span>Enter the ID stenciled on the light pole. Must be registered in municipal grid.</span>
+                    </p>
+                </div>
+
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Nature of Fault / Issue Type</label>
                     <select id="citizen-issue-type" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">

@@ -53,8 +53,13 @@ function closeModal(id) {
     document.getElementById(id)?.classList.add('hidden');
 }
 
-function openReportComplaintModal() {
+function openReportComplaintModal(poleName = null) {
     openModal('modal-report-complaint');
+    if (poleName) {
+        const input = document.getElementById('complaint-pole-number');
+        if (input) input.value = poleName;
+        document.getElementById('complaint-issue').value = "Bulb Failure";
+    }
 }
 
 function openAddPoleModal() {
@@ -217,8 +222,7 @@ function renderMapMarkers() {
 }
 
 function quickReportForPole(poleName) {
-    openReportComplaintModal();
-    document.getElementById('complaint-issue').value = "Bulb Failure";
+    openReportComplaintModal(poleName);
 }
 
 async function loadPoles() {
@@ -227,6 +231,15 @@ async function loadPoles() {
         const json = await res.json();
         if (json.success) {
             cachedPoles = json.data;
+
+            // Populate datalist for official complaint modal
+            const datalist = document.getElementById('official-registered-poles-list');
+            if (datalist) {
+                datalist.innerHTML = cachedPoles.map(p => 
+                    `<option value="${p.pole_name}">${p.pole_name} - ${p.pole_type} (${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)})</option>`
+                ).join('');
+            }
+
             const tbody = document.getElementById('poles-table-body');
             tbody.innerHTML = cachedPoles.map(p => `
                 <tr class="hover:bg-slate-750">
@@ -410,14 +423,20 @@ function filterComplaints(status) {
 function renderComplaintsTable(complaints) {
     const tbody = document.getElementById('complaints-table-body');
     if (!complaints.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">No complaints matching filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">No complaints matching filter.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = complaints.map(c => `
         <tr class="hover:bg-slate-750">
             <td class="py-2.5 px-4 font-mono font-bold text-amber-400">#${c.complaint_id}</td>
-            <td class="py-2.5 px-4 font-semibold text-white">${c.issue_type}</td>
+            <td class="py-2.5 px-4">
+                <div class="font-semibold text-white">${c.issue_type}</div>
+                ${c.pole_name ? `<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono font-bold">${c.pole_name}</span>` : ''}
+            </td>
+            <td class="py-2.5 px-4 font-mono">
+                ${c.coordinates ? `<span class="text-emerald-400 font-bold">${c.coordinates}</span>` : '<span class="text-slate-500 font-mono italic">Not Tagged</span>'}
+            </td>
             <td class="py-2.5 px-4">
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
                     c.priority === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' :
@@ -461,20 +480,34 @@ function renderComplaintsTable(complaints) {
 
 async function submitComplaint(e) {
     e.preventDefault();
+    const pole_number = document.getElementById('complaint-pole-number').value.trim().toUpperCase();
     const issue_type = document.getElementById('complaint-issue').value;
     const priority = document.getElementById('complaint-priority').value;
     const status = document.getElementById('complaint-status').value;
     const media_url = document.getElementById('complaint-media-url').value;
 
+    if (!pole_number) {
+        showToast('Please enter the pole number stenciled on the pole.', 'error');
+        document.getElementById('complaint-pole-number').focus();
+        return;
+    }
+
+    const matched = cachedPoles.find(p => p.pole_name.toUpperCase() === pole_number);
+    if (!matched) {
+        showToast(`Pole "${pole_number}" is not registered in the official app. Only registered poles can be reported.`, 'error');
+        document.getElementById('complaint-pole-number').focus();
+        return;
+    }
+
     try {
         const res = await fetch('/api/complaints', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ issue_type, priority, status, media_url })
+            body: JSON.stringify({ issue_type, priority, status, media_url, pole_number })
         });
         const data = await res.json();
         if (data.success) {
-            showToast(data.message + ' (Trigger logged audit media)', 'success');
+            showToast(`${data.message} Coordinates [${data.coordinates}] linked automatically.`, 'success');
             closeModal('modal-report-complaint');
             document.getElementById('form-complaint').reset();
             loadComplaints();

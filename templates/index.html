@@ -310,6 +310,7 @@
                             <tr>
                                 <th class="py-3 px-4">Ticket ID</th>
                                 <th class="py-3 px-4">Issue Type</th>
+                                <th class="py-3 px-4">Coordinates (Lat, Lon)</th>
                                 <th class="py-3 px-4">Priority</th>
                                 <th class="py-3 px-4">Current Status</th>
                                 <th class="py-3 px-4">Filed Timestamp</th>
@@ -531,6 +532,23 @@
             <p class="text-xs text-slate-400">Logs a formal ticket into <code>LightComplaints</code> and triggers audit media insertion.</p>
 
             <form id="form-complaint" onsubmit="submitComplaint(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">
+                        Pole Number / Asset Code (Printed on Pole) <span class="text-amber-400">*</span>
+                    </label>
+                    <input type="text" id="complaint-pole-number" list="official-registered-poles-list" required
+                           placeholder="e.g. P-BLR-101"
+                           autocomplete="off"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono placeholder:normal-case placeholder:text-slate-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
+                    <datalist id="official-registered-poles-list">
+                        <!-- Populated dynamically via JS -->
+                    </datalist>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i>
+                        <span>Enter registered pole code (e.g. <code>P-BLR-101</code>). Only registered poles can be reported.</span>
+                    </p>
+                </div>
+
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Fault Type / Issue Description</label>
                     <select id="complaint-issue" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">

@@ -46,6 +46,8 @@ function closeModal(id) {
 function openReportComplaintModal(poleName = null) {
     openModal('modal-report-complaint');
     if (poleName) {
+        const poleInput = document.getElementById('citizen-pole-number');
+        if (poleInput) poleInput.value = poleName;
         document.getElementById('citizen-issue-type').value = 'Bulb Failure';
     }
 }
@@ -126,6 +128,14 @@ async function loadCitizenPoles() {
             cachedCitizenPoles = json.data;
             document.getElementById('total-poles-counter').textContent = cachedCitizenPoles.length;
 
+            // Populate datalist for complaint modal
+            const datalist = document.getElementById('citizen-registered-poles-list');
+            if (datalist) {
+                datalist.innerHTML = cachedCitizenPoles.map(p => 
+                    `<option value="${p.pole_name}">${p.pole_name} - ${p.pole_type} (${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)})</option>`
+                ).join('');
+            }
+
             const list = document.getElementById('citizen-poles-list');
             list.innerHTML = cachedCitizenPoles.map(p => `
                 <div class="p-2 rounded bg-slate-900 border border-slate-700/60 flex items-center justify-between hover:bg-slate-750 transition cursor-pointer" onclick="openReportComplaintModal('${p.pole_name}')">
@@ -177,14 +187,20 @@ function filterCitizenComplaints(status) {
 function renderAllComplaintsTable(complaints) {
     const tbody = document.getElementById('citizen-all-complaints-body');
     if (!complaints.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">No complaints matching filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">No complaints matching filter.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = complaints.map(c => `
         <tr class="hover:bg-slate-750">
             <td class="py-2.5 px-4 font-bold text-amber-400">#${c.complaint_id}</td>
-            <td class="py-2.5 px-4 font-semibold text-white">${c.issue_type}</td>
+            <td class="py-2.5 px-4">
+                <div class="font-semibold text-white">${c.issue_type}</div>
+                ${c.pole_name ? `<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono font-bold">${c.pole_name}</span>` : ''}
+            </td>
+            <td class="py-2.5 px-4 font-mono">
+                ${c.coordinates ? `<span class="text-emerald-400 font-bold">${c.coordinates}</span>` : '<span class="text-slate-500 font-mono italic">Not Tagged</span>'}
+            </td>
             <td class="py-2.5 px-4">
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
                     c.priority === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
@@ -219,14 +235,20 @@ async function loadMyCitizenComplaints() {
 
             const tbody = document.getElementById('citizen-my-complaints-body');
             if (!cachedMyComplaints.length) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">You haven't filed any complaints in this session yet.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">You haven't filed any complaints in this session yet.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = cachedMyComplaints.map(c => `
                 <tr class="hover:bg-slate-750">
                     <td class="py-2.5 px-4 font-bold text-emerald-400">#${c.complaint_id}</td>
-                    <td class="py-2.5 px-4 font-semibold text-white">${c.issue_type}</td>
+                    <td class="py-2.5 px-4">
+                        <div class="font-semibold text-white">${c.issue_type}</div>
+                        ${c.pole_name ? `<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono font-bold">${c.pole_name}</span>` : ''}
+                    </td>
+                    <td class="py-2.5 px-4 font-mono">
+                        ${c.coordinates ? `<span class="text-emerald-400 font-bold">${c.coordinates}</span>` : '<span class="text-slate-500 font-mono italic">Not Tagged</span>'}
+                    </td>
                     <td class="py-2.5 px-4">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
                             c.priority === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
@@ -257,19 +279,34 @@ async function loadMyCitizenComplaints() {
 
 async function submitCitizenComplaint(e) {
     e.preventDefault();
+    const pole_number = document.getElementById('citizen-pole-number').value.trim().toUpperCase();
     const issue_type = document.getElementById('citizen-issue-type').value;
     const priority = document.getElementById('citizen-priority').value;
     const media_url = document.getElementById('citizen-media-url').value.trim();
+
+    if (!pole_number) {
+        showToast('Please enter the pole number stenciled on the pole.', 'error');
+        document.getElementById('citizen-pole-number').focus();
+        return;
+    }
+
+    // Verify pole is registered in official app
+    const registeredMatch = cachedCitizenPoles.find(p => p.pole_name.toUpperCase() === pole_number);
+    if (!registeredMatch) {
+        showToast(`Pole "${pole_number}" is not registered in the official app. Only registered poles can be reported.`, 'error');
+        document.getElementById('citizen-pole-number').focus();
+        return;
+    }
 
     try {
         const res = await fetch('/api/complaints', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ issue_type, priority, status: 'Open', media_url })
+            body: JSON.stringify({ issue_type, priority, status: 'Open', media_url, pole_number })
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`${data.message} Trigger auto-inserted audit record.`, 'success');
+            showToast(`${data.message} Coordinates [${data.coordinates}] linked automatically.`, 'success');
             closeModal('modal-report-complaint');
             document.getElementById('citizen-form-complaint').reset();
             loadAllCitizenComplaints();

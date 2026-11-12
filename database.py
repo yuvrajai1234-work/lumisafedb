@@ -553,6 +553,13 @@ class DatabaseManager:
         return self.execute("DELETE FROM Citizens WHERE user_id = %s", (user_id,))
 
     # 5. Light Complaints
+    def get_pole_by_name(self, pole_name):
+        if not pole_name:
+            return None
+        sql = "SELECT * FROM LightPoles WHERE UPPER(TRIM(pole_name)) = UPPER(TRIM(%s))"
+        rows = self.query(sql, (pole_name,))
+        return rows[0] if rows else None
+
     def get_complaints(self):
         sql = """
         SELECT 
@@ -565,7 +572,53 @@ class DatabaseManager:
         FROM LightComplaints c
         ORDER BY c.complaint_id DESC
         """
-        return self.query(sql)
+        complaints = self.query(sql)
+
+        # Enrich complaints with pole coordinates
+        try:
+            poles = self.get_poles()
+            pole_lookup = {p['pole_name'].upper().strip(): p for p in poles}
+
+            # Fallback map for original seed complaints 1..4 if not explicitly tagged
+            seed_pole_map = {
+                1: 'P-BLR-101',
+                2: 'P-BLR-102',
+                3: 'P-BLR-103',
+                4: 'P-BLR-104'
+            }
+
+            for c in complaints:
+                matched_pole = None
+                issue = (c.get('issue_type') or '').upper()
+
+                # Search registered pole names within issue_type (e.g. "(Pole: P-BLR-101)")
+                for pname, pdata in pole_lookup.items():
+                    if pname in issue:
+                        matched_pole = pdata
+                        break
+
+                # Seed complaint fallback if pole wasn't written into issue_type
+                if not matched_pole and c.get('complaint_id'):
+                    cid = int(c['complaint_id'])
+                    if cid in seed_pole_map and seed_pole_map[cid] in pole_lookup:
+                        matched_pole = pole_lookup[seed_pole_map[cid]]
+
+                if matched_pole:
+                    c['pole_name'] = matched_pole['pole_name']
+                    lat = float(matched_pole['latitude'])
+                    lon = float(matched_pole['longitude'])
+                    c['latitude'] = lat
+                    c['longitude'] = lon
+                    c['coordinates'] = f"{lat:.6f}, {lon:.6f}"
+                else:
+                    c['pole_name'] = None
+                    c['latitude'] = None
+                    c['longitude'] = None
+                    c['coordinates'] = None
+        except Exception as e:
+            logger.warning(f"Failed enriching complaints with pole coordinates: {e}")
+
+        return complaints
 
     def create_complaint(self, issue_type, priority, status='Open', media_url=None):
         if priority not in ('Low', 'Medium', 'High', 'Critical'):

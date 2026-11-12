@@ -39,15 +39,19 @@ class LumiSafeTestCase(unittest.TestCase):
         self.assertEqual(login_res.status_code, 200)
         self.assertTrue(login_res.get_json()['success'])
 
-        # 2. File a complaint as citizen
+        # 2. File a complaint as citizen with registered pole
         comp_res = self.client.post('/api/complaints', json={
             "issue_type": "Bulb Failure",
             "priority": "Medium",
             "status": "Open",
+            "pole_number": "P-BLR-101",
             "media_url": "https://example.com/test_citizen_proof.jpg"
         })
         self.assertEqual(comp_res.status_code, 200)
-        new_id = comp_res.get_json()['id']
+        res_json = comp_res.get_json()
+        new_id = res_json['id']
+        self.assertEqual(res_json['pole_name'], 'P-BLR-101')
+        self.assertIsNotNone(res_json['coordinates'])
 
         # 3. Check citizen's my-complaints
         my_res = self.client.get('/api/citizen/my-complaints')

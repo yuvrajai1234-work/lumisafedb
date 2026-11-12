@@ -354,10 +354,10 @@ INSERT INTO Citizens (first_name, last_name, email, phone_no, date_of_birth) VAL
 
 -- 5. Light Complaints (Trigger trg_after_complaint_insert will auto-insert initial audit media)
 INSERT INTO LightComplaints (issue_type, priority, status) VALUES
-('Bulb Failure', 'Medium', 'Open'),
-('Wiring Exposed', 'Critical', 'In Progress'),
-('Pole Leaning / Physical Damage', 'High', 'Open'),
-('Flickering Lamp', 'Low', 'Resolved');
+('Bulb Failure (Pole: P-BLR-101)', 'Medium', 'Open'),
+('Wiring Exposed (Pole: P-BLR-102)', 'Critical', 'In Progress'),
+('Pole Leaning / Physical Damage (Pole: P-BLR-103)', 'High', 'Open'),
+('Flickering Lamp (Pole: P-BLR-104)', 'Low', 'Resolved');
 
 -- 6. Additional ComplaintMedia (Photo proofs uploaded by citizens / field inspectors)
 INSERT INTO ComplaintMedia (complaint_id, media_url) VALUES
