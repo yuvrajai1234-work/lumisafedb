@@ -131,12 +131,6 @@ async function checkDatabaseStatus() {
         console.error('Status check error:', e);
     }
 }
-            tbody.innerHTML = `<tr><td class="py-2 px-3 text-emerald-400">${data.message}</td></tr>`;
-        }
-    } catch (e) {
-        showToast('Error sending SQL query', 'error');
-    }
-}
 
 // -------------------------------------------------------------
 // KPIs & Dashboard
