@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumiSafe - Municipal Street Light & Civic Safety Grid</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        amberGlow: '#f59e0b',
+                        darkNavy: '#0f172a',
+                        cardNavy: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-lightbulb text-slate-950 text-xl font-bold"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        LUMISAFE <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Dual-Portal</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400">Municipal Street Light Safety Management System</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 text-xs">
+                <a href="/citizen/login" class="text-slate-300 hover:text-amber-400 transition font-medium">Citizen Access</a>
+                <span class="text-slate-700">|</span>
+                <a href="/official/login" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">Official Portal</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero & Portal Selection -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-12 flex-1 flex flex-col justify-center">
+        <!-- Title -->
+        <div class="text-center max-w-2xl mx-auto mb-12 space-y-3">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
+                <i class="fa-solid fa-shield-halved"></i> Urban Civic Infrastructure Protection
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                Intelligent Street Light Management & Urban Safety
+            </h2>
+            <p class="text-sm text-slate-400 leading-relaxed">
+                Choose your role to access either the public Citizen Portal for reporting failures and tracking existing civic tickets, or the Official Management Portal for grid engineering and maintenance work orders.
+            </p>
+        </div>
+
+        <!-- 2 Portal Selection Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
+            
+            <!-- Citizen Portal Card -->
+            <div class="bg-gradient-to-b from-slate-800 to-slate-850 rounded-2xl border border-slate-700 p-8 shadow-2xl hover:border-amber-500/50 transition duration-300 flex flex-col justify-between group">
+                <div class="space-y-4">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-2xl group-hover:scale-110 transition duration-300">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">Public Services</span>
+                        <h3 class="text-2xl font-bold text-white mt-1">Citizen Portal</h3>
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Register or sign in with your email to report street light failures, view your neighborhood's GIS lighting grid, inspect existing public complaints to avoid duplicates, and track repair status.
+                    </p>
+                    
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-slate-700/60 font-mono">
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Check existing complaints to avoid duplicate reports
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Report bulb failure, wiring hazard, or pole damage
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Track tickets filed by you in real-time
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Trigger-enforced citizen date-of-birth validation
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="pt-8">
+                    <a href="/citizen/login" class="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition transform active:scale-95">
+                        <span>Enter Citizen Portal</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Official Portal Card -->
+            <div class="bg-gradient-to-b from-slate-800 to-slate-850 rounded-2xl border border-slate-700 p-8 shadow-2xl hover:border-emerald-500/50 transition duration-300 flex flex-col justify-between group">
+                <div class="space-y-4">
+                    <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-2xl group-hover:scale-110 transition duration-300">
+                        <i class="fa-solid fa-building-columns"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Engineers & Inspectors</span>
+                        <h3 class="text-2xl font-bold text-white mt-1">Official Portal</h3>
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Authorized municipal engineering dashboard for Junior Engineers, Executive Engineers, and Chief Inspectors to manage street poles, update ticket status, dispatch work orders, and sync with MySQL Workbench.
+                    </p>
+
+                    <ul class="text-xs text-slate-400 space-y-2 pt-2 border-t border-slate-700/60 font-mono">
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> LightPoles inventory with Solar & Electrical sub-entities
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Work orders management with non-negative cost checks
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Electrical Divisions & Ward Councils administration
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> MySQL Workbench Hub & Interactive SQL Console
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="pt-8">
+                    <a href="/official/login" class="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-bold text-sm transition transform active:scale-95">
+                        <i class="fa-solid fa-lock text-slate-400 text-xs"></i>
+                        <span>Enter Official Portal</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>LumiSafe &bull; Municipal Street Light Management & Urban Safety</span>
+            <span>Zero New Database Attributes &bull; Direct MySQL Workbench Integration</span>
+        </div>
+    </footer>
+
+</body>
+</html>
+

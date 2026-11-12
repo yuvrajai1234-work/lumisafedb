@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables & Credentials
+.env
+
+# Local SQLite Database
+lumisafe.db
+
+# OS Files
+Thumbs.db
+.DS_Store

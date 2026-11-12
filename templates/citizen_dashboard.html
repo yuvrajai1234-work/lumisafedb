@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumiSafe - Citizen Street Light Safety Portal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        amberGlow: '#f59e0b',
+                        darkNavy: '#0f172a',
+                        cardNavy: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-800/90 border-b border-slate-700/80 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-lightbulb text-slate-950 text-xl font-bold"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        LUMISAFE <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">Citizen Portal</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Public Street Light Monitoring & Fault Reporting</p>
+                </div>
+            </div>
+
+            <!-- User Badge & Actions -->
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs">
+                    <i class="fa-solid fa-circle-user text-amber-400"></i>
+                    <span class="text-slate-200 font-semibold" id="citizen-name-badge">
+                        {{ citizen.first_name }} {{ citizen.last_name }}
+                    </span>
+                    <span class="text-slate-500 font-mono text-[11px]">({{ citizen.email }})</span>
+                </div>
+
+                <button onclick="openReportComplaintModal()" class="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-3 sm:px-4 py-2 rounded-lg text-xs shadow-md transition transform active:scale-95">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>Report Light Fault</span>
+                </button>
+
+                <a href="/logout" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 text-xs transition border border-slate-700" title="Sign Out">
+                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Sign Out
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 sm:space-x-6 overflow-x-auto text-sm border-t border-slate-700/40">
+            <button class="nav-tab active-tab" onclick="switchCitizenTab('map')">
+                <i class="fa-solid fa-map-location-dot mr-1.5 text-amber-400"></i> Street Light Map & Grid
+            </button>
+            <button class="nav-tab" onclick="switchCitizenTab('complaints')">
+                <i class="fa-solid fa-list-check mr-1.5 text-blue-400"></i> City Complaints Board
+            </button>
+            <button class="nav-tab" onclick="switchCitizenTab('my-complaints')">
+                <i class="fa-solid fa-ticket mr-1.5 text-emerald-400"></i> My Filed Tickets (<span id="my-tickets-count">0</span>)
+            </button>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+        <!-- Notification Banner Container -->
+        <div id="toast-container" class="fixed top-20 right-6 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+        <!-- Welcome Alert Bar -->
+        <div class="bg-gradient-to-r from-slate-850 to-slate-800 border border-slate-700/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <i class="fa-solid fa-bullhorn text-sm"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white">Welcome, {{ citizen.first_name }}!</h3>
+                    <p class="text-xs text-slate-400">Check the <strong>City Complaints Board</strong> before reporting to see if a failure has already been logged by another citizen.</p>
+                </div>
+            </div>
+            <button onclick="openReportComplaintModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+                <span>File a new complaint</span> <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </button>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- TAB 1: STREET LIGHT MAP & GRID -->
+        <!-- ============================================================== -->
+        <section id="citizen-tab-map" class="citizen-tab-content space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- GIS Map -->
+                <div class="lg:col-span-2 bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-map-location-dot text-amber-400"></i>
+                            <h2 class="font-bold text-sm text-slate-200">Neighborhood Street Light Status</h2>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Normal</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block animate-ping"></span> High-Risk Area</span>
+                        </div>
+                    </div>
+                    <div id="citizen-map" class="h-96 w-full rounded-lg z-10 border border-slate-700"></div>
+                </div>
+
+                <!-- Pole Inventory List for Quick Reference -->
+                <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3 border-b border-slate-700 pb-2">
+                            <h2 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-tower-broadcast text-emerald-400"></i> Nearby Poles (<span id="total-poles-counter">0</span>)
+                            </h2>
+                            <span class="text-[11px] text-slate-400">Public Assets</span>
+                        </div>
+                        <div id="citizen-poles-list" class="space-y-2 overflow-y-auto max-h-80 pr-1 text-xs">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-slate-700/60 text-center">
+                        <p class="text-[11px] text-slate-400">See a damaged light pole? Click on any pole in the list or map to report.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 2: CITY COMPLAINTS BOARD (PREVENT DUPLICATES) -->
+        <!-- ============================================================== -->
+        <section id="citizen-tab-complaints" class="citizen-tab-content hidden space-y-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-cat text-blue-400"></i> Public Complaints Board
+                    </h2>
+                    <p class="text-xs text-slate-400">Inspect existing tickets logged across the city so duplicate complaints are not filed for the same issue.</p>
+                </div>
+                <!-- Filter Pills -->
+                <div class="flex gap-2 text-xs">
+                    <button onclick="filterCitizenComplaints('ALL')" class="citizen-complaint-filter active-filter px-3 py-1 rounded">All City Tickets</button>
+                    <button onclick="filterCitizenComplaints('Open')" class="citizen-complaint-filter px-3 py-1 rounded">Open</button>
+                    <button onclick="filterCitizenComplaints('In Progress')" class="citizen-complaint-filter px-3 py-1 rounded">In Progress</button>
+                    <button onclick="filterCitizenComplaints('Resolved')" class="citizen-complaint-filter px-3 py-1 rounded">Resolved</button>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Ticket ID</th>
+                                <th class="py-3 px-4">Reported Issue</th>
+                                <th class="py-3 px-4">Priority Level</th>
+                                <th class="py-3 px-4">Current Status</th>
+                                <th class="py-3 px-4">Reported At</th>
+                                <th class="py-3 px-4 text-right">Photo Proof</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citizen-all-complaints-body" class="divide-y divide-slate-700/60 font-mono">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 3: MY FILED COMPLAINTS -->
+        <!-- ============================================================== -->
+        <section id="citizen-tab-my-complaints" class="citizen-tab-content hidden space-y-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-ticket text-emerald-400"></i> My Filed Complaint Tickets
+                    </h2>
+                    <p class="text-xs text-slate-400">Track the repair status of faults you have filed in your session.</p>
+                </div>
+                <button onclick="openReportComplaintModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs shadow transition">
+                    <i class="fa-solid fa-plus-circle mr-1"></i> File New Ticket
+                </button>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Ticket ID</th>
+                                <th class="py-3 px-4">Reported Issue</th>
+                                <th class="py-3 px-4">Priority Level</th>
+                                <th class="py-3 px-4">Current Status</th>
+                                <th class="py-3 px-4">Filed Timestamp</th>
+                                <th class="py-3 px-4 text-right">Attached Media</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citizen-my-complaints-body" class="divide-y divide-slate-700/60 font-mono">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal: File Street Light Fault (Citizen) -->
+    <div id="modal-report-complaint" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-report-complaint')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Report Street Light Fault
+            </h3>
+            <p class="text-xs text-slate-400">
+                Logged directly into <code>LightComplaints</code>. Please make sure this fault has not already been reported in the City Complaints Board.
+            </p>
+
+            <form id="citizen-form-complaint" onsubmit="submitCitizenComplaint(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Nature of Fault / Issue Type</label>
+                    <select id="citizen-issue-type" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="Bulb Failure">Bulb Failure (Light Unlit / Dark Street)</option>
+                        <option value="Wiring Exposed">Wiring Exposed / Sparking Hazard</option>
+                        <option value="Pole Leaning / Physical Damage">Pole Leaning / Physical Collision Damage</option>
+                        <option value="Flickering Lamp">Flickering Lamp / Voltage Fluctuation</option>
+                        <option value="Solar Panel Defect">Solar Panel / Battery Depletion</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Urgency / Priority Level</label>
+                    <select id="citizen-priority" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="Low">Low - Minor aesthetic issue</option>
+                        <option value="Medium" selected>Medium - Normal street unlit</option>
+                        <option value="High">High - Busy junction / intersection</option>
+                        <option value="Critical">Critical - Immediate shock / safety hazard</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Photo Evidence URL (ComplaintMedia)</label>
+                    <input type="url" id="citizen-media-url" placeholder="https://example.com/photo.jpg" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    <p class="text-[10px] text-slate-500 mt-1">Stored into <code>ComplaintMedia</code> weak entity linked to this ticket.</p>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-report-complaint')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow">Submit Complaint</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Citizen Logic JS -->
+    <script src="/static/js/citizen.js"></script>
+</body>
+</html>
+

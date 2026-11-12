@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Portal Sign In - LumiSafe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+            <a href="/" class="flex items-center space-x-3 text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span class="text-xs font-semibold">Back to Home</span>
+            </a>
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-building-columns text-sm"></i>
+                </div>
+                <span class="text-sm font-bold text-white">Official Management Portal</span>
+            </div>
+            <a href="/citizen/login" class="text-xs text-amber-400 hover:text-amber-300">Citizen Access</a>
+        </div>
+    </header>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="fixed top-20 right-6 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+    <main class="max-w-md mx-auto px-4 py-16 flex-1 flex flex-col justify-center w-full">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-8 space-y-6">
+            <div class="space-y-2 text-center">
+                <div class="w-12 h-12 mx-auto rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white">Official Engineering Sign In</h2>
+                <p class="text-xs text-slate-400">Authorized access for Junior Engineers, Executive Engineers, and Chief Inspectors in <code>ElectricalOfficials</code>.</p>
+            </div>
+
+            <form onsubmit="handleOfficialLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Official Government Email</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-xs">
+                            <i class="fa-solid fa-id-badge"></i>
+                        </span>
+                        <input type="email" id="official-login-email" required placeholder="suresh.k@bescom.gov.in" class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:border-emerald-400 focus:outline-none font-mono">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-lock-open text-xs"></i>
+                    <span>Verify & Enter Dashboard</span>
+                </button>
+            </form>
+
+            <!-- Sample Officials Quick Fill -->
+            <div class="pt-4 border-t border-slate-700/60 space-y-2">
+                <span class="text-[11px] font-bold text-slate-400 block">Registered Officials (Click to autofill):</span>
+                <div class="flex flex-col gap-1.5 text-[11px]">
+                    <button onclick="fillOfficialLogin('suresh.k@bescom.gov.in')" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-750 border border-slate-700 rounded-lg text-left flex items-center justify-between text-slate-300">
+                        <span>Suresh Kumar</span>
+                        <span class="text-slate-500 text-[10px] font-mono">Junior Engineer</span>
+                    </button>
+                    <button onclick="fillOfficialLogin('rajeshwari.s@bescom.gov.in')" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-750 border border-slate-700 rounded-lg text-left flex items-center justify-between text-slate-300">
+                        <span>Dr. Rajeshwari Swamy</span>
+                        <span class="text-slate-500 text-[10px] font-mono">Asst Exec Engineer</span>
+                    </button>
+                    <button onclick="fillOfficialLogin('v.babu@lumisafe.gov.in')" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-750 border border-slate-700 rounded-lg text-left flex items-center justify-between text-slate-300">
+                        <span>Venkatesh Babu</span>
+                        <span class="text-slate-500 text-[10px] font-mono">Chief Inspector</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function fillOfficialLogin(email) {
+            document.getElementById('official-login-email').value = email;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-emerald-600 text-white border-emerald-400',
+                error: 'bg-red-600 text-white border-red-400',
+                info: 'bg-blue-600 text-white border-blue-400'
+            };
+            toast.className = `px-4 py-3 rounded-lg shadow-2xl border text-xs flex items-center gap-2 pointer-events-auto ${colors[type] || colors.info}`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 4000);
+        }
+
+        async function handleOfficialLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('official-login-email').value.trim();
+            try {
+                const res = await fetch('/api/auth/official/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    window.location.href = data.redirect;
+                } else {
+                    showToast(data.error, 'error');
+                }
+            } catch (err) {
+                showToast('Authentication failed', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
+

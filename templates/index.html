@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumiSafe - Municipal Street Light & Urban Safety Management</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            900: '#064e3b'
+                        },
+                        amberGlow: '#f59e0b',
+                        darkNavy: '#0f172a',
+                        cardNavy: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-800/90 border-b border-slate-700/80 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-lightbulb text-slate-950 text-xl font-bold"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        LUMISAFE <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Official Portal</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Municipal Street Light & Civic Safety Grid Administration</p>
+                </div>
+            </div>
+
+            <!-- Official Badge, DB Connection Pill & Sign Out -->
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs">
+                    <i class="fa-solid fa-user-shield text-emerald-400"></i>
+                    <span class="text-slate-200 font-semibold">
+                        {% if official %}{{ official.official_name }} <span class="text-slate-500 font-mono text-[10px]">({{ official.designation }})</span>{% else %}Municipal Engineer{% endif %}
+                    </span>
+                </div>
+
+                <button onclick="openReportComplaintModal()" class="hidden sm:inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs shadow-md transition transform active:scale-95">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span>Report Fault</span>
+                </button>
+
+                <a href="/logout" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-red-400 text-xs transition border border-slate-700" title="Sign Out">
+                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Sign Out
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 sm:space-x-4 overflow-x-auto text-sm border-t border-slate-700/40">
+            <button class="nav-tab active-tab" onclick="switchTab('dashboard')">
+                <i class="fa-solid fa-chart-pie mr-1.5"></i> Dashboard
+            </button>
+            <button class="nav-tab" onclick="switchTab('poles')">
+                <i class="fa-solid fa-tower-broadcast mr-1.5"></i> Light Poles & GIS
+            </button>
+            <button class="nav-tab" onclick="switchTab('complaints')">
+                <i class="fa-solid fa-ticket mr-1.5"></i> Complaints & Citizens
+            </button>
+            <button class="nav-tab" onclick="switchTab('media')">
+                <i class="fa-solid fa-images mr-1.5"></i> Complaint Media
+            </button>
+            <button class="nav-tab" onclick="switchTab('workorders')">
+                <i class="fa-solid fa-wrench mr-1.5"></i> Work Orders
+            </button>
+            <button class="nav-tab" onclick="switchTab('admin')">
+                <i class="fa-solid fa-landmark mr-1.5"></i> Administration
+            </button>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- Notification Banner Container -->
+        <div id="toast-container" class="fixed top-20 right-6 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+        <!-- ============================================================== -->
+        <!-- TAB 1: DASHBOARD -->
+        <!-- ============================================================== -->
+        <section id="tab-dashboard" class="tab-content space-y-6">
+            <!-- KPI Statistics Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div class="kpi-card border-l-4 border-amber-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>Total Poles</span>
+                        <i class="fa-solid fa-tower-broadcast text-amber-500"></i>
+                    </div>
+                    <div id="kpi-total-poles" class="text-2xl font-bold mt-1 text-white">0</div>
+                    <div class="text-[11px] text-slate-400 mt-1 flex gap-2">
+                        <span>☀️ <strong id="kpi-solar-poles">0</strong> Solar</span>
+                        <span>⚡ <strong id="kpi-elec-poles">0</strong> Elec</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card border-l-4 border-red-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>High Risk Poles</span>
+                        <i class="fa-solid fa-triangle-exclamation text-red-500"></i>
+                    </div>
+                    <div id="kpi-risk-poles" class="text-2xl font-bold mt-1 text-red-400">0</div>
+                    <p class="text-[11px] text-slate-400 mt-1">Requiring safety review</p>
+                </div>
+
+                <div class="kpi-card border-l-4 border-amber-400">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>Open Complaints</span>
+                        <i class="fa-solid fa-circle-exclamation text-amber-400"></i>
+                    </div>
+                    <div id="kpi-open-complaints" class="text-2xl font-bold mt-1 text-amber-300">0</div>
+                    <p class="text-[11px] text-slate-400 mt-1">Pending dispatch</p>
+                </div>
+
+                <div class="kpi-card border-l-4 border-blue-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>In Progress</span>
+                        <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+                    </div>
+                    <div id="kpi-progress-complaints" class="text-2xl font-bold mt-1 text-blue-300">0</div>
+                    <p class="text-[11px] text-slate-400 mt-1">Contractor active</p>
+                </div>
+
+                <div class="kpi-card border-l-4 border-emerald-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>Resolved</span>
+                        <i class="fa-solid fa-check-circle text-emerald-400"></i>
+                    </div>
+                    <div id="kpi-resolved-complaints" class="text-2xl font-bold mt-1 text-emerald-300">0</div>
+                    <p class="text-[11px] text-slate-400 mt-1">Audited repairs</p>
+                </div>
+
+                <div class="kpi-card border-l-4 border-purple-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs">
+                        <span>Repair Budget</span>
+                        <i class="fa-solid fa-indian-rupee-sign text-purple-400"></i>
+                    </div>
+                    <div id="kpi-total-budget" class="text-2xl font-bold mt-1 text-purple-300">₹0</div>
+                    <div class="text-[11px] text-slate-400 mt-1">
+                        <strong id="kpi-pending-wo">0</strong> active orders
+                    </div>
+                </div>
+            </div>
+
+            <!-- GIS Map & Quick Alerts -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Interactive Leaflet Map -->
+                <div class="lg:col-span-2 bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-map-location-dot text-amber-400"></i>
+                            <h2 class="font-bold text-sm text-slate-200">GIS Street Light Grid Map</h2>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Normal</span>
+                            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block animate-ping"></span> High-Risk</span>
+                            <button onclick="renderMap()" class="hover:text-white transition"><i class="fa-solid fa-arrows-rotate"></i> Reset View</button>
+                        </div>
+                    </div>
+                    <div id="map" class="h-96 w-full rounded-lg z-10 border border-slate-700"></div>
+                </div>
+
+                <!-- Live System Alerts & Trigger Audits -->
+                <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3 border-b border-slate-700 pb-2">
+                        <h2 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-emerald-400"></i> Active Safety Triggers
+                        </h2>
+                        <span class="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">Live Enforced</span>
+                    </div>
+
+                    <div class="space-y-3 flex-1 overflow-y-auto max-h-[360px] pr-1">
+                        <div class="p-3 bg-slate-900/60 rounded-lg border border-slate-700/60 text-xs">
+                            <div class="flex items-center justify-between font-semibold text-amber-400">
+                                <span><i class="fa-solid fa-fingerprint mr-1"></i> trg_validate_citizen_dob</span>
+                                <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">BEFORE INSERT</span>
+                            </div>
+                            <p class="text-slate-300 mt-1">Prevents future dates of birth for citizen registrations with SQLSTATE '45000'.</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-900/60 rounded-lg border border-slate-700/60 text-xs">
+                            <div class="flex items-center justify-between font-semibold text-blue-400">
+                                <span><i class="fa-solid fa-camera mr-1"></i> trg_after_complaint_insert</span>
+                                <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">AFTER INSERT</span>
+                            </div>
+                            <p class="text-slate-300 mt-1">Automatically logs initial verification audit URL into <code>ComplaintMedia</code>.</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-900/60 rounded-lg border border-slate-700/60 text-xs">
+                            <div class="flex items-center justify-between font-semibold text-purple-400">
+                                <span><i class="fa-solid fa-file-contract mr-1"></i> trg_after_status_update</span>
+                                <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">AFTER UPDATE</span>
+                            </div>
+                            <p class="text-slate-300 mt-1">Generates status-change media record whenever a ticket progresses.</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-900/60 rounded-lg border border-slate-700/60 text-xs">
+                            <div class="flex items-center justify-between font-semibold text-emerald-400">
+                                <span><i class="fa-solid fa-coins mr-1"></i> chk_est_cost & Trigger</span>
+                                <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">CHECK (cost >= 0)</span>
+                            </div>
+                            <p class="text-slate-300 mt-1">Rejects negative repair contractor estimates at database level.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 2: LIGHT POLES & SUB-ENTITIES -->
+        <!-- ============================================================== -->
+        <section id="tab-poles" class="tab-content hidden space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-tower-broadcast text-amber-400"></i> Light Poles Master Inventory
+                    </h2>
+                    <p class="text-xs text-slate-400">Physical street lighting assets with Solar / Electrical IS-A inheritance hierarchy</p>
+                </div>
+                <button onclick="openAddPoleModal()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow transition">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Register Light Pole</span>
+                </button>
+            </div>
+
+            <!-- Table of Poles -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Pole ID</th>
+                                <th class="py-3 px-4">Asset Code</th>
+                                <th class="py-3 px-4">Type (IS-A Hierarchy)</th>
+                                <th class="py-3 px-4">Coordinates (Lat, Lon)</th>
+                                <th class="py-3 px-4">Safety Status</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="poles-table-body" class="divide-y divide-slate-700/60 font-mono text-xs">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 3: COMPLAINTS & CITIZENS -->
+        <!-- ============================================================== -->
+        <section id="tab-complaints" class="tab-content hidden space-y-6">
+            <!-- Header with actions -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-ticket text-amber-400"></i> Light Complaints & Citizen Registry
+                    </h2>
+                    <p class="text-xs text-slate-400">Fault tickets reported by citizens with trigger-validated registrations</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="openAddCitizenModal()" class="inline-flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 text-white font-medium px-3 py-2 rounded-lg text-xs transition">
+                        <i class="fa-solid fa-user-plus"></i>
+                        <span>Register Citizen</span>
+                    </button>
+                    <button onclick="openReportComplaintModal()" class="inline-flex items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs shadow transition">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>File Complaint</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Complaints Table -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="p-3 bg-slate-900/60 border-b border-slate-700 flex justify-between items-center text-xs">
+                    <span class="font-bold text-slate-300">Active Complaint Tickets</span>
+                    <div class="flex gap-2">
+                        <button onclick="filterComplaints('ALL')" class="complaint-filter active-filter px-2.5 py-1 rounded">All</button>
+                        <button onclick="filterComplaints('Open')" class="complaint-filter px-2.5 py-1 rounded">Open</button>
+                        <button onclick="filterComplaints('In Progress')" class="complaint-filter px-2.5 py-1 rounded">In Progress</button>
+                        <button onclick="filterComplaints('Resolved')" class="complaint-filter px-2.5 py-1 rounded">Resolved</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Ticket ID</th>
+                                <th class="py-3 px-4">Issue Type</th>
+                                <th class="py-3 px-4">Priority</th>
+                                <th class="py-3 px-4">Current Status</th>
+                                <th class="py-3 px-4">Filed Timestamp</th>
+                                <th class="py-3 px-4">Media Proofs</th>
+                                <th class="py-3 px-4 text-right">Update Status / Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="complaints-table-body" class="divide-y divide-slate-700/60 text-xs">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Citizens Registry Accordion -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 shadow">
+                <h3 class="font-bold text-sm text-slate-200 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-users text-blue-400"></i> Registered Citizens Directory
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-2 px-3">Citizen ID</th>
+                                <th class="py-2 px-3">Name</th>
+                                <th class="py-2 px-3">Email</th>
+                                <th class="py-2 px-3">Phone</th>
+                                <th class="py-2 px-3">Date of Birth</th>
+                                <th class="py-2 px-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citizens-table-body" class="divide-y divide-slate-700/60">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 4: COMPLAINT MEDIA GALLERY -->
+        <!-- ============================================================== -->
+        <section id="tab-media" class="tab-content hidden space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-images text-amber-400"></i> Complaint Media Evidence Gallery
+                    </h2>
+                    <p class="text-xs text-slate-400">Weak Entity (linked to LightComplaints) capturing citizen evidence and automated trigger audit photos</p>
+                </div>
+                <button onclick="openAddMediaModal()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow transition">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Attach Media URL</span>
+                </button>
+            </div>
+
+            <div id="media-gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Media cards populated via JS -->
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 5: WORK ORDERS -->
+        <!-- ============================================================== -->
+        <section id="tab-workorders" class="tab-content hidden space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-wrench text-amber-400"></i> Third-Party Contractor Work Orders
+                    </h2>
+                    <p class="text-xs text-slate-400">Maintenance contracts with CHECK (est_cost >= 0) and completion date tracking</p>
+                </div>
+                <button onclick="openAddWorkOrderModal()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow transition">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Issue Work Order</span>
+                </button>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Order ID</th>
+                                <th class="py-3 px-4">Contractor / Vendor</th>
+                                <th class="py-3 px-4">Issue Date</th>
+                                <th class="py-3 px-4">Estimated Cost</th>
+                                <th class="py-3 px-4">Completion Date</th>
+                                <th class="py-3 px-4">Contract Status</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workorders-table-body" class="divide-y divide-slate-700/60 text-xs">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 6: CIVIC ADMINISTRATION -->
+        <!-- ============================================================== -->
+        <section id="tab-admin" class="tab-content hidden space-y-6">
+            <!-- Electrical Divisions & Ward Councils Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Electrical Divisions -->
+                <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 shadow">
+                    <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-bolt text-amber-400"></i> Electrical Divisions
+                            </h3>
+                            <p class="text-[11px] text-slate-400">City zone grid administrative bodies</p>
+                        </div>
+                        <button onclick="openAddDivisionModal()" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400">
+                                <tr>
+                                    <th class="py-2 px-3">Div ID</th>
+                                    <th class="py-2 px-3">Division Name</th>
+                                    <th class="py-2 px-3">District</th>
+                                    <th class="py-2 px-3 text-right">Delete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="divisions-table-body" class="divide-y divide-slate-700/60">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ward Councils -->
+                <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 shadow">
+                    <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-landmark text-blue-400"></i> Ward Councils
+                            </h3>
+                            <p class="text-[11px] text-slate-400">Local municipal wards & council leadership</p>
+                        </div>
+                        <button onclick="openAddWardModal()" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400">
+                                <tr>
+                                    <th class="py-2 px-3">Ward ID</th>
+                                    <th class="py-2 px-3">Ward Name & Number</th>
+                                    <th class="py-2 px-3">Councillor</th>
+                                    <th class="py-2 px-3 text-right">Delete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wards-table-body" class="divide-y divide-slate-700/60">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Electrical Officials -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 shadow">
+                <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <div>
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-user-tie text-purple-400"></i> Electrical Officials & Engineers
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Government engineers and inspectors overseeing maintenance</p>
+                    </div>
+                    <button onclick="openAddOfficialModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded text-xs text-white">
+                        <i class="fa-solid fa-plus mr-1"></i> Register Official
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900 text-slate-400">
+                            <tr>
+                                <th class="py-2 px-3">Official ID</th>
+                                <th class="py-2 px-3">Officer Name</th>
+                                <th class="py-2 px-3">Designation</th>
+                                <th class="py-2 px-3">Official Email</th>
+                                <th class="py-2 px-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="officials-table-body" class="divide-y divide-slate-700/60">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800/80 border-t border-slate-700/60 py-4 text-center text-xs text-slate-400">
+        <p>LumiSafe Municipal Safety System &bull; Unified MySQL & Workbench Integration</p>
+    </footer>
+
+    <!-- ============================================================== -->
+    <!-- MODALS -->
+    <!-- ============================================================== -->
+
+    <!-- Modal 1: Report Complaint (Citizen Portal) -->
+    <div id="modal-report-complaint" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-report-complaint')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Report Street Light Failure
+            </h3>
+            <p class="text-xs text-slate-400">Logs a formal ticket into <code>LightComplaints</code> and triggers audit media insertion.</p>
+
+            <form id="form-complaint" onsubmit="submitComplaint(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Fault Type / Issue Description</label>
+                    <select id="complaint-issue" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="Bulb Failure">Bulb Failure (Unlit Street)</option>
+                        <option value="Wiring Exposed">Wiring Exposed / Sparking (Hazardous)</option>
+                        <option value="Pole Leaning / Physical Damage">Pole Leaning / Physical Vehicle Impact</option>
+                        <option value="Flickering Lamp">Flickering Lamp / Unstable Voltage</option>
+                        <option value="Solar Panel Damaged">Solar Panel Defect / Battery Drainage</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Priority Level</label>
+                        <select id="complaint-priority" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical (Emergency)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Initial Status</label>
+                        <select id="complaint-status" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                            <option value="Open" selected>Open</option>
+                            <option value="In Progress">In Progress</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Optional Photo Evidence URL (ComplaintMedia)</label>
+                    <input type="url" id="complaint-media-url" placeholder="https://example.com/photo.jpg" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-report-complaint')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow">File Complaint Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Register Light Pole (Master + Sub-Entity) -->
+    <div id="modal-add-pole" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-pole')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-tower-broadcast text-emerald-400"></i> Register New Light Pole
+            </h3>
+            <p class="text-xs text-slate-400">Enforces CHECK (-90 to +90 lat) and registers IS-A sub-entity row.</p>
+
+            <form id="form-pole" onsubmit="submitPole(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Asset Code / Name</label>
+                    <input type="text" id="pole-name" required placeholder="e.g. P-BLR-109" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Latitude (-90 to 90)</label>
+                        <input type="number" step="0.00000001" id="pole-lat" required value="12.92500000" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Longitude (-180 to 180)</label>
+                        <input type="number" step="0.00000001" id="pole-lon" required value="77.65000000" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Sub-Entity Specialization</label>
+                    <select id="pole-sub-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="Electrical">ElectricalLightPoles (Grid Powered)</option>
+                        <option value="Solar">SolarLightPoles (Solar + Battery)</option>
+                        <option value="Hybrid">Hybrid (Both Tables)</option>
+                        <option value="Standard">Standard Pole (Base Table Only)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="pole-is-risk" class="rounded bg-slate-900 border-slate-700 text-red-500 focus:ring-0">
+                    <label for="pole-is-risk" class="text-xs text-slate-300">Mark as <strong>High-Risk Area</strong></label>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-pole')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow">Register Pole</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: Register Citizen (Demonstrating Trigger) -->
+    <div id="modal-add-citizen" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-citizen')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-blue-400"></i> Register Citizen
+            </h3>
+            <p class="text-xs text-slate-400">
+                <span class="text-amber-400 font-semibold">Trigger Validation:</span> Date of Birth is validated by <code>trg_validate_citizen_dob</code>. Future dates will be rejected.
+            </p>
+
+            <form id="form-citizen" onsubmit="submitCitizen(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">First Name</label>
+                        <input type="text" id="citizen-first-name" required placeholder="Aarav" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Last Name</label>
+                        <input type="text" id="citizen-last-name" required placeholder="Sharma" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Email (Unique)</label>
+                    <input type="email" id="citizen-email" required placeholder="citizen@example.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Phone Number (Unique)</label>
+                    <input type="tel" id="citizen-phone" required placeholder="9880123456" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Date of Birth (Validated via Trigger)</label>
+                    <input type="date" id="citizen-dob" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    <p class="text-[10px] text-slate-500 mt-1">Try entering a future date to test the trigger rejection!</p>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-citizen')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow">Register Citizen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 4: Issue Work Order -->
+    <div id="modal-add-workorder" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-workorder')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-wrench text-purple-400"></i> Issue Contractor Work Order
+            </h3>
+            <p class="text-xs text-slate-400">Enforces CHECK (est_cost >= 0) and contract assignment.</p>
+
+            <form id="form-workorder" onsubmit="submitWorkOrder(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Vendor / Contracting Company Name</label>
+                    <input type="text" id="wo-vendor" required placeholder="e.g. LumiTech Infrastructure Ltd" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Issue Date</label>
+                        <input type="date" id="wo-date" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Estimated Cost (₹ >= 0)</label>
+                        <input type="number" step="0.01" min="0" id="wo-cost" required placeholder="5000.00" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Completion Date (Optional)</label>
+                    <input type="date" id="wo-completed" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-workorder')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow">Issue Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 5: Add Media Proof -->
+    <div id="modal-add-media" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-media')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-camera text-emerald-400"></i> Attach Media URL to Complaint
+            </h3>
+            <p class="text-xs text-slate-400">Links photo evidence directly to a ticket in <code>ComplaintMedia</code>.</p>
+
+            <form id="form-media" onsubmit="submitMedia(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Select Complaint Ticket</label>
+                    <select id="media-complaint-id" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Media URL</label>
+                    <input type="url" id="media-url-input" required placeholder="https://example.com/photo.jpg" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-media')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow">Attach Media</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 6: Add Division -->
+    <div id="modal-add-division" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-division')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white">Add Electrical Division</h3>
+            <form onsubmit="submitDivision(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Division Name</label>
+                    <input type="text" id="div-name" required placeholder="Central Division" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">District / Region</label>
+                    <input type="text" id="div-district" required placeholder="Bengaluru Urban" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-division')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow">Save Division</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 7: Add Ward -->
+    <div id="modal-add-ward" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-ward')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white">Add Ward Council</h3>
+            <form onsubmit="submitWard(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Ward Name and Number</label>
+                    <input type="text" id="ward-name" required placeholder="Ward 150 HSR Layout" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Councillor Name</label>
+                    <input type="text" id="ward-councillor" required placeholder="K. Ramesh" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-ward')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow">Save Ward</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 8: Add Official -->
+    <div id="modal-add-official" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-add-official')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white">Register Electrical Official</h3>
+            <form onsubmit="submitOfficial(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Officer Name</label>
+                    <input type="text" id="official-name" required placeholder="Suresh Kumar" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Designation</label>
+                    <input type="text" id="official-desig" required placeholder="Junior Engineer" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Official Email (Unique)</label>
+                    <input type="email" id="official-email" required placeholder="suresh.k@bescom.gov.in" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-add-official')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow">Register Official</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- App Logic JS -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
