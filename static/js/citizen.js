@@ -5,10 +5,99 @@ let citizenMarkersLayer = null;
 let cachedCitizenPoles = [];
 let cachedAllComplaints = [];
 let cachedMyComplaints = [];
+let selectedCitizenFile = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initCitizenApp();
 });
+
+// -------------------------------------------------------------
+// Device File Upload Handlers (Citizen Portal)
+// -------------------------------------------------------------
+function handleCitizenFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        showToast('Please select a valid image file (PNG, JPG, JPEG, WEBP, GIF).', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        showToast('File size exceeds 10MB limit.', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    selectedCitizenFile = file;
+    const previewCard = document.getElementById('citizen-file-preview-card');
+    const placeholder = document.getElementById('citizen-file-placeholder');
+    const thumb = document.getElementById('citizen-file-thumb');
+    const nameLabel = document.getElementById('citizen-file-name');
+    const sizeLabel = document.getElementById('citizen-file-size');
+
+    if (thumb) thumb.src = URL.createObjectURL(file);
+    if (nameLabel) nameLabel.textContent = file.name;
+    if (sizeLabel) sizeLabel.textContent = (file.size / 1024).toFixed(1) + ' KB';
+
+    placeholder?.classList.add('hidden');
+    previewCard?.classList.remove('hidden');
+
+    const urlInput = document.getElementById('citizen-media-url');
+    if (urlInput) urlInput.value = '';
+}
+
+function removeCitizenSelectedFile(event) {
+    if (event) event.stopPropagation();
+    selectedCitizenFile = null;
+    const fileInput = document.getElementById('citizen-media-file');
+    if (fileInput) fileInput.value = '';
+
+    const previewCard = document.getElementById('citizen-file-preview-card');
+    const placeholder = document.getElementById('citizen-file-placeholder');
+    previewCard?.classList.add('hidden');
+    placeholder?.classList.remove('hidden');
+}
+
+function toggleCitizenUrlInput() {
+    const container = document.getElementById('citizen-url-container');
+    const text = document.getElementById('citizen-url-toggle-text');
+    if (!container) return;
+    const isHidden = container.classList.contains('hidden');
+    if (isHidden) {
+        container.classList.remove('hidden');
+        if (text) text.textContent = 'Hide URL field';
+        document.getElementById('citizen-media-url')?.focus();
+    } else {
+        container.classList.add('hidden');
+        if (text) text.textContent = 'Or paste image URL';
+    }
+}
+
+async function viewComplaintMedia(complaintId) {
+    try {
+        const res = await fetch(`/api/media?complaint_id=${complaintId}`);
+        const json = await res.json();
+        if (json.success && json.data && json.data.length > 0) {
+            const first = json.data[0];
+            const img = document.getElementById('proof-viewer-img');
+            const urlSpan = document.getElementById('proof-viewer-url');
+            const link = document.getElementById('proof-viewer-link');
+            const title = document.getElementById('proof-viewer-title');
+
+            if (title) title.innerHTML = `<i class="fa-solid fa-camera text-amber-400"></i> Photo Evidence &bull; Ticket #${complaintId}`;
+            if (img) img.src = first.media_url;
+            if (urlSpan) urlSpan.textContent = first.media_url;
+            if (link) link.href = first.media_url;
+            openModal('modal-view-proof');
+        } else {
+            showToast('No photo proof uploaded for this ticket yet.', 'info');
+        }
+    } catch (e) {
+        showToast('Error loading media proof', 'error');
+    }
+}
 
 async function initCitizenApp() {
     await loadCitizenPoles();
@@ -217,9 +306,9 @@ function renderAllComplaintsTable(complaints) {
             </td>
             <td class="py-2.5 px-4 text-slate-400 text-[11px]">${c.created_at || 'Recently'}</td>
             <td class="py-2.5 px-4 text-right">
-                <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300 text-[10px]">
+                <button onclick="viewComplaintMedia(${c.complaint_id})" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-amber-300 text-[10px] transition cursor-pointer">
                     <i class="fa-solid fa-camera mr-1"></i> ${c.media_count || 1} Proofs
-                </span>
+                </button>
             </td>
         </tr>
     `).join('');
@@ -265,9 +354,9 @@ async function loadMyCitizenComplaints() {
                     </td>
                     <td class="py-2.5 px-4 text-slate-400 text-[11px]">${c.created_at || 'Recently'}</td>
                     <td class="py-2.5 px-4 text-right">
-                        <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-emerald-400 text-[10px]">
-                            <i class="fa-solid fa-check-circle mr-1"></i> Logged
-                        </span>
+                        <button onclick="viewComplaintMedia(${c.complaint_id})" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-700 border border-slate-700 text-emerald-400 hover:text-white text-[10px] transition cursor-pointer">
+                            <i class="fa-solid fa-camera mr-1"></i> View Proof
+                        </button>
                     </td>
                 </tr>
             `).join('');
@@ -282,7 +371,7 @@ async function submitCitizenComplaint(e) {
     const pole_number = document.getElementById('citizen-pole-number').value.trim().toUpperCase();
     const issue_type = document.getElementById('citizen-issue-type').value;
     const priority = document.getElementById('citizen-priority').value;
-    const media_url = document.getElementById('citizen-media-url').value.trim();
+    let media_url = document.getElementById('citizen-media-url')?.value.trim() || null;
 
     if (!pole_number) {
         showToast('Please enter the pole number stenciled on the pole.', 'error');
@@ -298,6 +387,28 @@ async function submitCitizenComplaint(e) {
         return;
     }
 
+    // If user selected a file from device, upload it first
+    if (selectedCitizenFile) {
+        const formData = new FormData();
+        formData.append('file', selectedCitizenFile);
+        try {
+            const upRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const upData = await upRes.json();
+            if (upData.success) {
+                media_url = upData.url;
+            } else {
+                showToast(`Failed uploading device photo: ${upData.error}`, 'error');
+                return;
+            }
+        } catch (upErr) {
+            showToast('Network error while uploading photo from device.', 'error');
+            return;
+        }
+    }
+
     try {
         const res = await fetch('/api/complaints', {
             method: 'POST',
@@ -306,9 +417,14 @@ async function submitCitizenComplaint(e) {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`${data.message} Coordinates [${data.coordinates}] linked automatically.`, 'success');
+            showToast(`${data.message} Photo proof attached.`, 'success');
             closeModal('modal-report-complaint');
             document.getElementById('citizen-form-complaint').reset();
+            removeCitizenSelectedFile();
+            const urlContainer = document.getElementById('citizen-url-container');
+            const urlToggle = document.getElementById('citizen-url-toggle-text');
+            if (urlContainer) urlContainer.classList.add('hidden');
+            if (urlToggle) urlToggle.textContent = 'Or paste image URL';
             loadAllCitizenComplaints();
             loadMyCitizenComplaints();
         } else {

@@ -4,6 +4,111 @@ let mapInstance = null;
 let markersLayer = null;
 let cachedPoles = [];
 let cachedComplaints = [];
+let selectedOfficialFile = null;
+let selectedGalleryFile = null;
+
+// -------------------------------------------------------------
+// Device File Upload Handlers (Official Portal)
+// -------------------------------------------------------------
+function handleOfficialFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        showToast('Please select a valid image file (PNG, JPG, JPEG, WEBP, GIF).', 'error');
+        event.target.value = '';
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        showToast('File size exceeds 10MB limit.', 'error');
+        event.target.value = '';
+        return;
+    }
+    selectedOfficialFile = file;
+    const thumb = document.getElementById('official-file-thumb');
+    const nameLabel = document.getElementById('official-file-name');
+    const sizeLabel = document.getElementById('official-file-size');
+    if (thumb) thumb.src = URL.createObjectURL(file);
+    if (nameLabel) nameLabel.textContent = file.name;
+    if (sizeLabel) sizeLabel.textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('official-file-placeholder')?.classList.add('hidden');
+    document.getElementById('official-file-preview-card')?.classList.remove('hidden');
+    const urlInput = document.getElementById('complaint-media-url');
+    if (urlInput) urlInput.value = '';
+}
+
+function removeOfficialSelectedFile(event) {
+    if (event) event.stopPropagation();
+    selectedOfficialFile = null;
+    const fileInput = document.getElementById('complaint-media-file');
+    if (fileInput) fileInput.value = '';
+    document.getElementById('official-file-preview-card')?.classList.add('hidden');
+    document.getElementById('official-file-placeholder')?.classList.remove('hidden');
+}
+
+function toggleOfficialUrlInput() {
+    const container = document.getElementById('official-url-container');
+    const text = document.getElementById('official-url-toggle-text');
+    if (!container) return;
+    const isHidden = container.classList.contains('hidden');
+    if (isHidden) {
+        container.classList.remove('hidden');
+        if (text) text.textContent = 'Hide URL field';
+        document.getElementById('complaint-media-url')?.focus();
+    } else {
+        container.classList.add('hidden');
+        if (text) text.textContent = 'Or paste image URL';
+    }
+}
+
+function handleGalleryFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        showToast('Please select a valid image file (PNG, JPG, JPEG, WEBP, GIF).', 'error');
+        event.target.value = '';
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        showToast('File size exceeds 10MB limit.', 'error');
+        event.target.value = '';
+        return;
+    }
+    selectedGalleryFile = file;
+    const thumb = document.getElementById('gallery-file-thumb');
+    const nameLabel = document.getElementById('gallery-file-name');
+    const sizeLabel = document.getElementById('gallery-file-size');
+    if (thumb) thumb.src = URL.createObjectURL(file);
+    if (nameLabel) nameLabel.textContent = file.name;
+    if (sizeLabel) sizeLabel.textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('gallery-file-placeholder')?.classList.add('hidden');
+    document.getElementById('gallery-file-preview-card')?.classList.remove('hidden');
+    const urlInput = document.getElementById('media-url-input');
+    if (urlInput) urlInput.value = '';
+}
+
+function removeGallerySelectedFile(event) {
+    if (event) event.stopPropagation();
+    selectedGalleryFile = null;
+    const fileInput = document.getElementById('gallery-media-file');
+    if (fileInput) fileInput.value = '';
+    document.getElementById('gallery-file-preview-card')?.classList.add('hidden');
+    document.getElementById('gallery-file-placeholder')?.classList.remove('hidden');
+}
+
+function toggleGalleryUrlInput() {
+    const container = document.getElementById('gallery-url-container');
+    const text = document.getElementById('gallery-url-toggle-text');
+    if (!container) return;
+    const isHidden = container.classList.contains('hidden');
+    if (isHidden) {
+        container.classList.remove('hidden');
+        if (text) text.textContent = 'Hide URL field';
+        document.getElementById('media-url-input')?.focus();
+    } else {
+        container.classList.add('hidden');
+        if (text) text.textContent = 'Or enter image URL';
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
@@ -484,7 +589,7 @@ async function submitComplaint(e) {
     const issue_type = document.getElementById('complaint-issue').value;
     const priority = document.getElementById('complaint-priority').value;
     const status = document.getElementById('complaint-status').value;
-    const media_url = document.getElementById('complaint-media-url').value;
+    let media_url = document.getElementById('complaint-media-url')?.value.trim() || null;
 
     if (!pole_number) {
         showToast('Please enter the pole number stenciled on the pole.', 'error');
@@ -499,6 +604,28 @@ async function submitComplaint(e) {
         return;
     }
 
+    // If device file selected, upload first
+    if (selectedOfficialFile) {
+        const formData = new FormData();
+        formData.append('file', selectedOfficialFile);
+        try {
+            const upRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const upData = await upRes.json();
+            if (upData.success) {
+                media_url = upData.url;
+            } else {
+                showToast(`Failed uploading device photo: ${upData.error}`, 'error');
+                return;
+            }
+        } catch (upErr) {
+            showToast('Network error while uploading device photo.', 'error');
+            return;
+        }
+    }
+
     try {
         const res = await fetch('/api/complaints', {
             method: 'POST',
@@ -510,6 +637,10 @@ async function submitComplaint(e) {
             showToast(`${data.message} Coordinates [${data.coordinates}] linked automatically.`, 'success');
             closeModal('modal-report-complaint');
             document.getElementById('form-complaint').reset();
+            removeOfficialSelectedFile();
+            document.getElementById('official-url-container')?.classList.add('hidden');
+            const urlToggle = document.getElementById('official-url-toggle-text');
+            if (urlToggle) urlToggle.textContent = 'Or paste image URL';
             loadComplaints();
             loadMedia();
             loadKPIs();
@@ -602,7 +733,38 @@ async function loadMedia() {
 async function submitMedia(e) {
     e.preventDefault();
     const complaint_id = document.getElementById('media-complaint-id').value;
-    const media_url = document.getElementById('media-url-input').value;
+    let media_url = document.getElementById('media-url-input')?.value.trim() || null;
+
+    if (!complaint_id) {
+        showToast('Please select a complaint ticket.', 'error');
+        return;
+    }
+
+    if (selectedGalleryFile) {
+        const formData = new FormData();
+        formData.append('file', selectedGalleryFile);
+        try {
+            const upRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const upData = await upRes.json();
+            if (upData.success) {
+                media_url = upData.url;
+            } else {
+                showToast(`Failed uploading file: ${upData.error}`, 'error');
+                return;
+            }
+        } catch (upErr) {
+            showToast('Network error while uploading device file.', 'error');
+            return;
+        }
+    }
+
+    if (!media_url) {
+        showToast('Please choose an image file from device or provide an image URL.', 'error');
+        return;
+    }
 
     try {
         const res = await fetch('/api/media', {
@@ -615,6 +777,10 @@ async function submitMedia(e) {
             showToast(data.message, 'success');
             closeModal('modal-add-media');
             document.getElementById('form-media').reset();
+            removeGallerySelectedFile();
+            document.getElementById('gallery-url-container')?.classList.add('hidden');
+            const urlToggle = document.getElementById('gallery-url-toggle-text');
+            if (urlToggle) urlToggle.textContent = 'Or enter image URL';
             loadMedia();
             loadComplaints();
         } else {

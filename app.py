@@ -1,6 +1,8 @@
 import os
 import datetime
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import tempfile
+import uuid
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from flask_cors import CORS
 from config import Config
 from database import db
@@ -8,6 +10,47 @@ from database import db
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
+
+# -------------------------------------------------------------
+# File Upload Configuration (Local & Vercel Serverless Ready)
+# -------------------------------------------------------------
+if os.environ.get('VERCEL'):
+    UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'lumisafe_uploads')
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "No file payload received."}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({"success": False, "error": "No file selected."}), 400
+    if not allowed_file(file.filename):
+        return jsonify({"success": False, "error": "Invalid file type. Please upload an image file (PNG, JPG, JPEG, WEBP, GIF)."}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    unique_name = f"proof_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.{ext}"
+    target_path = os.path.join(UPLOAD_FOLDER, unique_name)
+    file.save(target_path)
+
+    file_url = f"/uploads/{unique_name}"
+    return jsonify({
+        "success": True,
+        "url": file_url,
+        "filename": unique_name,
+        "message": "File uploaded successfully from device."
+    })
 
 # -------------------------------------------------------------
 # Web Page Navigation Routes
@@ -436,14 +479,31 @@ def api_media():
     if request.method == 'GET':
         cid = request.args.get('complaint_id', type=int)
         return jsonify({"success": True, "data": db.get_media(cid)})
-    data = request.json or {}
-    complaint_id = data.get('complaint_id')
-    media_url = data.get('media_url', '').strip()
+
+    complaint_id = None
+    media_url = None
+
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        complaint_id = request.form.get('complaint_id')
+        media_url = request.form.get('media_url', '').strip()
+        if 'file' in request.files and request.files['file'].filename:
+            file = request.files['file']
+            if not allowed_file(file.filename):
+                return jsonify({"success": False, "error": "Invalid file type. Allowed: PNG, JPG, JPEG, WEBP, GIF."}), 400
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            unique_name = f"proof_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.{ext}"
+            file.save(os.path.join(UPLOAD_FOLDER, unique_name))
+            media_url = f"/uploads/{unique_name}"
+    else:
+        data = request.json or {}
+        complaint_id = data.get('complaint_id')
+        media_url = data.get('media_url', '').strip()
+
     if not complaint_id or not media_url:
-        return jsonify({"success": False, "error": "Complaint ID and Media URL are required."}), 400
+        return jsonify({"success": False, "error": "Complaint ID and Media URL/File are required."}), 400
     try:
         res = db.create_media(int(complaint_id), media_url)
-        return jsonify({"success": True, "id": res['lastrowid'], "message": "Media proof uploaded."})
+        return jsonify({"success": True, "id": res['lastrowid'], "media_url": media_url, "message": "Media proof uploaded."})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 

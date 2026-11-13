@@ -120,5 +120,19 @@ class LumiSafeTestCase(unittest.TestCase):
         self.assertTrue(data['success'])
         self.assertEqual(data['type'], 'SELECT')
 
+    def test_device_file_upload(self):
+        import io
+        png_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4'
+        res = self.client.post('/api/upload', data={'file': (io.BytesIO(png_data), 'device_photo.png')})
+        self.assertEqual(res.status_code, 200)
+        json_data = res.get_json()
+        self.assertTrue(json_data['success'])
+        self.assertTrue(json_data['url'].startswith('/uploads/'))
+
+        # Verify serving route
+        serve_res = self.client.get(json_data['url'])
+        self.assertEqual(serve_res.status_code, 200)
+        self.assertEqual(serve_res.data, png_data)
+
 if __name__ == '__main__':
     unittest.main()
