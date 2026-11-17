@@ -2,10 +2,13 @@ import os
 import re
 import sqlite3
 import datetime
+import logging
 from pathlib import Path
 import pymysql
 import pymysql.cursors
 from config import Config, BASE_DIR
+
+logger = logging.getLogger('lumisafe')
 
 class DatabaseManager:
     def __init__(self):
