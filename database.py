@@ -350,20 +350,34 @@ class DatabaseManager:
         return True, f"Successfully executed {len(statements)} schema statements on MySQL '{self.mysql_db}'."
 
     def query(self, sql, params=None):
-        """Executes a SELECT query returning a list of dictionaries."""
+        """Executes a SELECT query returning a list of dictionaries with clean JSON-safe types."""
         conn = self.get_connection()
         try:
             if self.active_driver == 'mysql':
                 with conn.cursor() as cur:
                     cur.execute(sql, params or ())
-                    return cur.fetchall()
+                    raw_rows = cur.fetchall()
             else:
                 cur = conn.cursor()
                 # Adapt %s placeholder to ? for sqlite if needed
                 adapted_sql = re.sub(r'%s', '?', sql)
                 cur.execute(adapted_sql, params or ())
-                rows = cur.fetchall()
-                return [dict(row) for row in rows]
+                raw_rows = [dict(row) for row in cur.fetchall()]
+
+            clean_rows = []
+            for row in raw_rows:
+                clean_row = {}
+                for k, v in row.items():
+                    if isinstance(v, datetime.datetime):
+                        clean_row[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+                    elif isinstance(v, datetime.date):
+                        clean_row[k] = v.strftime('%Y-%m-%d')
+                    elif hasattr(v, '__float__') and not isinstance(v, (int, float, bool)):
+                        clean_row[k] = float(v)
+                    else:
+                        clean_row[k] = v
+                clean_rows.append(clean_row)
+            return clean_rows
         finally:
             conn.close()
 
@@ -468,10 +482,11 @@ class DatabaseManager:
         return self.query("SELECT * FROM ElectricalDivisions ORDER BY div_id ASC")
 
     def create_division(self, div_name, district):
-        return self.execute(
+        res = self.execute(
             "INSERT INTO ElectricalDivisions (div_name, district) VALUES (%s, %s)",
             (div_name, district)
         )
+        return res['lastrowid']
 
     def delete_division(self, div_id):
         return self.execute("DELETE FROM ElectricalDivisions WHERE div_id = %s", (div_id,))
@@ -481,10 +496,11 @@ class DatabaseManager:
         return self.query("SELECT * FROM WardCouncils ORDER BY ward_id ASC")
 
     def create_ward(self, ward_name, councillor_name):
-        return self.execute(
+        res = self.execute(
             "INSERT INTO WardCouncils (ward_name, councillor_name) VALUES (%s, %s)",
             (ward_name, councillor_name)
         )
+        return res['lastrowid']
 
     def delete_ward(self, ward_id):
         return self.execute("DELETE FROM WardCouncils WHERE ward_id = %s", (ward_id,))
@@ -535,6 +551,8 @@ class DatabaseManager:
         return new_id
 
     def delete_pole(self, pole_id):
+        self.execute("DELETE FROM SolarLightPoles WHERE pole_id = %s", (pole_id,))
+        self.execute("DELETE FROM ElectricalLightPoles WHERE pole_id = %s", (pole_id,))
         return self.execute("DELETE FROM LightPoles WHERE pole_id = %s", (pole_id,))
 
     # 4. Citizens
@@ -547,10 +565,11 @@ class DatabaseManager:
         if dob > datetime.date.today():
             raise ValueError("Trigger Validation Error: Citizen date of birth cannot be in the future.")
 
-        return self.execute(
+        res = self.execute(
             "INSERT INTO Citizens (first_name, last_name, email, phone_no, date_of_birth) VALUES (%s, %s, %s, %s, %s)",
             (first_name, last_name, email, phone_no, str(date_of_birth))
         )
+        return res['lastrowid']
 
     def delete_citizen(self, user_id):
         return self.execute("DELETE FROM Citizens WHERE user_id = %s", (user_id,))
@@ -667,6 +686,7 @@ class DatabaseManager:
         return res
 
     def delete_complaint(self, complaint_id):
+        self.execute("DELETE FROM ComplaintMedia WHERE complaint_id = %s", (complaint_id,))
         return self.execute("DELETE FROM LightComplaints WHERE complaint_id = %s", (complaint_id,))
 
     # 6. Complaint Media
@@ -679,20 +699,22 @@ class DatabaseManager:
         return self.query("SELECT * FROM ComplaintMedia ORDER BY media_id DESC")
 
     def create_media(self, complaint_id, media_url):
-        return self.execute(
+        res = self.execute(
             "INSERT INTO ComplaintMedia (complaint_id, media_url) VALUES (%s, %s)",
             (complaint_id, media_url)
         )
+        return res['lastrowid']
 
     # 7. Electrical Officials
     def get_officials(self):
         return self.query("SELECT * FROM ElectricalOfficials ORDER BY official_id ASC")
 
     def create_official(self, official_name, designation, official_email):
-        return self.execute(
+        res = self.execute(
             "INSERT INTO ElectricalOfficials (official_name, designation, official_email) VALUES (%s, %s, %s)",
             (official_name, designation, official_email)
         )
+        return res['lastrowid']
 
     def delete_official(self, official_id):
         return self.execute("DELETE FROM ElectricalOfficials WHERE official_id = %s", (official_id,))
@@ -715,10 +737,11 @@ class DatabaseManager:
             raise ValueError("Trigger & Constraint Error: Estimated cost cannot be negative.")
 
         comp_date = str(completed_date) if completed_date else None
-        return self.execute(
+        res = self.execute(
             "INSERT INTO WorkOrders (vendor_name, issued_date, est_cost, completed_date) VALUES (%s, %s, %s, %s)",
             (vendor_name, str(issued_date), cost, comp_date)
         )
+        return res['lastrowid']
 
     def update_work_order(self, work_order_id, vendor_name, issued_date, est_cost, completed_date=None):
         cost = float(est_cost)
