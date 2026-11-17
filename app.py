@@ -556,6 +556,23 @@ def api_workorders():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
+@app.route('/api/workorders/<int:wo_id>', methods=['PUT'])
+def api_update_workorder(wo_id):
+    data = request.json or {}
+    vendor_name = data.get('vendor_name', '').strip()
+    issued_date = data.get('issued_date', '').strip()
+    est_cost = data.get('est_cost')
+    completed_date = data.get('completed_date', '').strip() or None
+
+    if not vendor_name or not issued_date or est_cost is None:
+        return jsonify({"success": False, "error": "Vendor name, issue date, and estimated cost are required."}), 400
+
+    try:
+        db.update_work_order(wo_id, vendor_name, issued_date, est_cost, completed_date)
+        return jsonify({"success": True, "message": f"Work Order #{wo_id} updated successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
 @app.route('/api/workorders/<int:wo_id>/complete', methods=['POST'])
 def api_complete_workorder(wo_id):
     data = request.json or {}

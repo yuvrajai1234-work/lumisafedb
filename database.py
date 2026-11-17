@@ -645,12 +645,17 @@ class DatabaseManager:
         if new_status not in ('Open', 'In Progress', 'Resolved'):
             raise ValueError(f"Invalid status '{new_status}'")
         
-        # When running on SQLite, replicate the trigger behavior if needed
+        # Verify complaint exists first to guarantee foreign key integrity
+        rows = self.query("SELECT complaint_id, status FROM LightComplaints WHERE complaint_id = %s", (complaint_id,))
+        if not rows:
+            raise ValueError(f"Complaint #{complaint_id} not found in database.")
+        
+        old_status = rows[0].get('status')
         res = self.execute(
             "UPDATE LightComplaints SET status = %s WHERE complaint_id = %s",
             (new_status, complaint_id)
         )
-        if self.active_driver == 'sqlite':
+        if self.active_driver == 'sqlite' and old_status != new_status:
             audit_url = f"https://lumisafe.org/proofs/ticket_{complaint_id}_status_{new_status.lower().replace(' ', '_')}.jpg"
             self.execute(
                 "INSERT INTO ComplaintMedia (complaint_id, media_url, uploaded_at) VALUES (%s, %s, datetime('now'))",
@@ -712,8 +717,29 @@ class DatabaseManager:
             (vendor_name, str(issued_date), cost, comp_date)
         )
 
+    def update_work_order(self, work_order_id, vendor_name, issued_date, est_cost, completed_date=None):
+        cost = float(est_cost)
+        if cost < 0:
+            raise ValueError("Trigger & Constraint Error: Estimated cost cannot be negative.")
+        comp_date = str(completed_date) if completed_date else None
+        return self.execute(
+            "UPDATE WorkOrders SET vendor_name = %s, issued_date = %s, est_cost = %s, completed_date = %s WHERE work_order_id = %s",
+            (vendor_name, str(issued_date), cost, comp_date, work_order_id)
+        )
+
     def complete_work_order(self, work_order_id, completed_date=None):
         c_date = completed_date or str(datetime.date.today())
+        # Check if work order references a complaint ticket
+        rows = self.query("SELECT * FROM WorkOrders WHERE work_order_id = %s", (work_order_id,))
+        if rows:
+            vname = rows[0].get('vendor_name', '')
+            match = re.search(r'Ticket\s*#?(\d+)', vname, re.IGNORECASE)
+            if match:
+                linked_cid = int(match.group(1))
+                try:
+                    self.update_complaint_status(linked_cid, 'Resolved')
+                except Exception:
+                    pass
         return self.execute(
             "UPDATE WorkOrders SET completed_date = %s WHERE work_order_id = %s",
             (c_date, work_order_id)

@@ -751,7 +751,21 @@
             <form id="form-workorder" onsubmit="submitWorkOrder(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Vendor / Contracting Company Name</label>
-                    <input type="text" id="wo-vendor" required placeholder="e.g. LumiTech Infrastructure Ltd" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    <input type="text" id="wo-vendor" required list="wo-vendor-options" placeholder="e.g. LumiTech Infrastructure Ltd" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    <datalist id="wo-vendor-options">
+                        <option value="VoltCare Municipal Repairs"></option>
+                        <option value="LumiTech Infrastructure Ltd"></option>
+                        <option value="Apex Solar Dynamics"></option>
+                        <option value="BrightCity Maintenance Corp"></option>
+                        <option value="PowerGrid Municipal Services"></option>
+                    </datalist>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Link to Complaint Ticket (Optional)</label>
+                    <select id="wo-linked-complaint" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="">-- Direct Grid Maintenance (No Linked Ticket) --</option>
+                    </select>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -772,7 +786,49 @@
 
                 <div class="pt-2 flex justify-end gap-2">
                     <button type="button" onclick="closeModal('modal-add-workorder')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
-                    <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow">Issue Ticket</button>
+                    <button type="submit" id="btn-submit-workorder" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow">Issue Work Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Work Order -->
+    <div id="modal-edit-workorder" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeModal('modal-edit-workorder')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-amber-400"></i> Edit Work Order #<span id="edit-wo-id-label"></span>
+            </h3>
+            <p class="text-xs text-slate-400">Update contractor assignment, estimated costs, and status tracking.</p>
+
+            <form id="form-edit-workorder" onsubmit="submitEditWorkOrder(event)" class="space-y-3">
+                <input type="hidden" id="edit-wo-id">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Contractor / Vendor Name</label>
+                    <input type="text" id="edit-wo-vendor" required list="wo-vendor-options" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Issue Date</label>
+                        <input type="date" id="edit-wo-date" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Estimated Cost (₹ >= 0)</label>
+                        <input type="number" step="0.01" min="0" id="edit-wo-cost" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Completion Date (Leave blank if Active)</label>
+                    <input type="date" id="edit-wo-completed" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modal-edit-workorder')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-medium rounded-lg text-white">Cancel</button>
+                    <button type="submit" id="btn-save-edit-workorder" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -923,7 +979,7 @@
     <!-- Leaflet JS CDN -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- App Logic JS -->
-    <script src="/static/js/app.js?v=5cd11a4"></script>
+    <script src="/static/js/app.js?v=smooth-v1"></script>
 </body>
 </html>
 

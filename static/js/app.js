@@ -148,6 +148,11 @@ function switchTab(tabName) {
             if (mapInstance) mapInstance.invalidateSize();
         }, 150);
     }
+    if (tabName === 'workorders') loadWorkOrders();
+    if (tabName === 'complaints') { loadComplaints(); loadCitizens(); }
+    if (tabName === 'dashboard') loadKPIs();
+    if (tabName === 'media') loadMedia();
+    if (tabName === 'poles') loadPoles();
 }
 
 function openModal(id) {
@@ -178,7 +183,31 @@ function openAddCitizenModal() {
 function openAddWorkOrderModal() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('wo-date').value = today;
+    const complaintSelect = document.getElementById('wo-linked-complaint');
+    if (complaintSelect) {
+        complaintSelect.innerHTML = '<option value="">-- Direct Grid Maintenance (No Linked Ticket) --</option>';
+        cachedComplaints.forEach(c => {
+            if (c.status !== 'Resolved') {
+                const opt = document.createElement('option');
+                opt.value = c.complaint_id;
+                opt.textContent = `Ticket #${c.complaint_id}: ${c.issue_type} [${c.priority}] (${c.status})`;
+                complaintSelect.appendChild(opt);
+            }
+        });
+    }
     openModal('modal-add-workorder');
+}
+
+function openEditWorkOrderModal(woId) {
+    const wo = cachedWorkOrders.find(w => w.work_order_id === woId);
+    if (!wo) return;
+    document.getElementById('edit-wo-id').value = woId;
+    document.getElementById('edit-wo-id-label').textContent = woId;
+    document.getElementById('edit-wo-vendor').value = wo.vendor_name || '';
+    document.getElementById('edit-wo-date').value = wo.issued_date || '';
+    document.getElementById('edit-wo-cost').value = parseFloat(wo.est_cost || 0);
+    document.getElementById('edit-wo-completed').value = wo.completed_date || '';
+    openModal('modal-edit-workorder');
 }
 
 function openAddMediaModal() {
@@ -583,8 +612,15 @@ function renderComplaintsTable(complaints) {
     `).join('');
 }
 
+let isSubmittingComplaint = false;
+
 async function submitComplaint(e) {
     e.preventDefault();
+    if (isSubmittingComplaint) return;
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalBtnText = btn ? btn.innerHTML : 'Submit Complaint';
+
     const pole_number = document.getElementById('complaint-pole-number').value.trim().toUpperCase();
     const issue_type = document.getElementById('complaint-issue').value;
     const priority = document.getElementById('complaint-priority').value;
@@ -604,29 +640,35 @@ async function submitComplaint(e) {
         return;
     }
 
-    // If device file selected, upload first
-    if (selectedOfficialFile) {
-        const formData = new FormData();
-        formData.append('file', selectedOfficialFile);
-        try {
-            const upRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const upData = await upRes.json();
-            if (upData.success) {
-                media_url = upData.url;
-            } else {
-                showToast(`Failed uploading device photo: ${upData.error}`, 'error');
+    try {
+        isSubmittingComplaint = true;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Filing Ticket...`;
+        }
+
+        // If device file selected, upload first
+        if (selectedOfficialFile) {
+            const formData = new FormData();
+            formData.append('file', selectedOfficialFile);
+            try {
+                const upRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const upData = await upRes.json();
+                if (upData.success) {
+                    media_url = upData.url;
+                } else {
+                    showToast(`Failed uploading device photo: ${upData.error}`, 'error');
+                    return;
+                }
+            } catch (upErr) {
+                showToast('Network error while uploading device photo.', 'error');
                 return;
             }
-        } catch (upErr) {
-            showToast('Network error while uploading device photo.', 'error');
-            return;
         }
-    }
 
-    try {
         const res = await fetch('/api/complaints', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -642,6 +684,7 @@ async function submitComplaint(e) {
             const urlToggle = document.getElementById('official-url-toggle-text');
             if (urlToggle) urlToggle.textContent = 'Or paste image URL';
             loadComplaints();
+            loadWorkOrders();
             loadMedia();
             loadKPIs();
         } else {
@@ -649,6 +692,12 @@ async function submitComplaint(e) {
         }
     } catch (err) {
         showToast('Error filing complaint', 'error');
+    } finally {
+        isSubmittingComplaint = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
     }
 }
 
@@ -794,13 +843,22 @@ async function submitMedia(e) {
 // -------------------------------------------------------------
 // Work Orders
 // -------------------------------------------------------------
+let cachedWorkOrders = [];
+let isSubmittingWorkOrder = false;
+let isUpdatingWorkOrder = false;
+
 async function loadWorkOrders() {
     try {
         const res = await fetch('/api/workorders');
         const json = await res.json();
         if (json.success) {
+            cachedWorkOrders = json.data;
             const tbody = document.getElementById('workorders-table-body');
-            tbody.innerHTML = json.data.map(w => {
+            if (!cachedWorkOrders.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">No contractor work orders logged.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = cachedWorkOrders.map(w => {
                 const isCompleted = !!w.completed_date;
                 return `
                     <tr class="hover:bg-slate-750">
@@ -817,11 +875,14 @@ async function loadWorkOrders() {
                         <td class="py-2.5 px-4 text-right">
                             <div class="flex items-center justify-end gap-1">
                                 ${!isCompleted ? `
-                                    <button onclick="completeWorkOrder(${w.work_order_id})" class="px-2 py-1 bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 rounded text-[10px] text-emerald-300 hover:text-white">
+                                    <button onclick="completeWorkOrder(${w.work_order_id})" class="px-2 py-1 bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 rounded text-[10px] text-emerald-300 hover:text-white" title="Mark Done">
                                         Mark Done
                                     </button>
                                 ` : ''}
-                                <button onclick="deleteWorkOrder(${w.work_order_id})" class="p-1 text-slate-500 hover:text-red-400 ml-1">
+                                <button onclick="openEditWorkOrderModal(${w.work_order_id})" class="p-1 text-slate-400 hover:text-amber-400 transition" title="Edit Order">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="deleteWorkOrder(${w.work_order_id})" class="p-1 text-slate-500 hover:text-red-400 ml-1 transition" title="Delete Order">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
                             </div>
@@ -837,12 +898,33 @@ async function loadWorkOrders() {
 
 async function submitWorkOrder(e) {
     e.preventDefault();
-    const vendor_name = document.getElementById('wo-vendor').value;
+    if (isSubmittingWorkOrder) return;
+
+    const btn = document.getElementById('btn-submit-workorder');
+    const origBtnText = btn ? btn.innerHTML : 'Issue Work Order';
+
+    let vendor_name = document.getElementById('wo-vendor').value.trim();
     const issued_date = document.getElementById('wo-date').value;
     const est_cost = document.getElementById('wo-cost').value;
-    const completed_date = document.getElementById('wo-completed').value;
+    const completed_date = document.getElementById('wo-completed').value || null;
+    const linkedTicket = document.getElementById('wo-linked-complaint')?.value;
+
+    if (!vendor_name || !issued_date || est_cost === '') {
+        showToast('Please fill all required work order fields.', 'error');
+        return;
+    }
+
+    if (linkedTicket && !vendor_name.toLowerCase().includes('ticket')) {
+        vendor_name = `${vendor_name} (Ticket #${linkedTicket})`;
+    }
 
     try {
+        isSubmittingWorkOrder = true;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Issuing Order...`;
+        }
+
         const res = await fetch('/api/workorders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -853,13 +935,78 @@ async function submitWorkOrder(e) {
             showToast(data.message, 'success');
             closeModal('modal-add-workorder');
             document.getElementById('form-workorder').reset();
+            
+            // If linked to a ticket, smoothly update that ticket to In Progress
+            if (linkedTicket) {
+                try {
+                    await fetch(`/api/complaints/${linkedTicket}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'In Progress' })
+                    });
+                } catch (e) {}
+            }
+
             loadWorkOrders();
+            loadComplaints();
             loadKPIs();
         } else {
             showToast(`CHECK Constraint / Error: ${data.error}`, 'error');
         }
     } catch (err) {
         showToast('Error issuing work order', 'error');
+    } finally {
+        isSubmittingWorkOrder = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origBtnText;
+        }
+    }
+}
+
+async function submitEditWorkOrder(e) {
+    e.preventDefault();
+    if (isUpdatingWorkOrder) return;
+
+    const btn = document.getElementById('btn-save-edit-workorder');
+    const origBtnText = btn ? btn.innerHTML : 'Save Changes';
+
+    const woId = document.getElementById('edit-wo-id').value;
+    const vendor_name = document.getElementById('edit-wo-vendor').value.trim();
+    const issued_date = document.getElementById('edit-wo-date').value;
+    const est_cost = document.getElementById('edit-wo-cost').value;
+    const completed_date = document.getElementById('edit-wo-completed').value || null;
+
+    try {
+        isUpdatingWorkOrder = true;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...`;
+        }
+
+        const res = await fetch(`/api/workorders/${woId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vendor_name, issued_date, est_cost, completed_date })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            closeModal('modal-edit-workorder');
+            loadWorkOrders();
+            loadComplaints();
+            loadKPIs();
+        } else {
+            showToast(`Error: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showToast('Error updating work order', 'error');
+    } finally {
+        isUpdatingWorkOrder = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origBtnText;
+        }
     }
 }
 
